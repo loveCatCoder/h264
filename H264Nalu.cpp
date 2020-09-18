@@ -82,22 +82,7 @@ int H264Nalu::rbspToSodb()
 
 
 
-H264Nalu::H264Nalu(H264File *file):m_file(file)
-{
-    H264Nalu *nalu = file->getNalu();
-    start = nalu->buf;
-    p = nalu->buf;
-    end = nalu->buf + nalu->len;
-    bits_left = 8;
-}
 
-H264Nalu::H264Nalu(const H264Nalu &buf) 
-{
-    start = buf.start;
-    p = buf.p;
-    end = buf.end;
-    bits_left = buf.bits_left;
-}
 
 H264Nalu::~H264Nalu()
 {
