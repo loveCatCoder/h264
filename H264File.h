@@ -6,6 +6,7 @@
 #include <string>
 #include "H264Nalu.h"
 
+
 class H264File
 {
 private:
@@ -15,7 +16,6 @@ private:
     uint8_t *m_fileBuffer;
     std::string m_fileName;
     int m_fileSize;
-    H264Nalu m_nalu;
 
     int m_naluNumber = 0;
     int m_naluStart = 0; // 当前找到的nalu起始位置
@@ -37,10 +37,6 @@ public:
 public:
     int findNalu();
     void readNalu();
-
-    H264Nalu *getNalu();
-    int naluToRbsp();
-    int rbspToSodb();
 
     int naluNumber();
     sps_t* activeSps();

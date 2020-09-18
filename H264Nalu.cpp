@@ -1,10 +1,88 @@
 
-#include "H264Buffer.h"
+#include "H264Nalu.h"
+#include "stdio.h"
+#include "assert.h"
 
-#include <stdlib.h>
-#include <stdio.h>
 
-H264Buffer::H264Buffer(H264File *file):m_file(file)
+H264Nalu::H264Nalu(/* args */)
+{
+}
+
+H264Nalu::~H264Nalu()
+{
+}
+
+int H264Nalu::naluToRbsp() 
+{
+    int nalu_size = len;
+    int j = 0;
+    int count = 0;
+
+    // 遇到0x000003则把03去掉，包含以cabac_zero_word结尾时，尾部为0x000003的情况
+    for (int i = 0; i < nalu_size; i++)
+    {
+
+        if (count == 2 && buf[i] == 0x03)
+        {
+            if (i == nalu_size - 1) // 结尾为0x000003
+            {
+                break; // 跳出循环
+            }
+            else
+            {
+                i++; // 继续下一个
+                count = 0;
+            }
+        }
+
+        buf[j] = buf[i];
+
+        if (buf[i] == 0x00)
+        {
+            count++;
+        }
+        else
+        {
+            count = 0;
+        }
+
+        j++;
+    }
+
+    return j;
+}
+
+int H264Nalu::rbspToSodb() 
+{
+      int ctr_bit, bitoffset, last_byte_pos;
+    bitoffset = 0;
+    last_byte_pos = len - 1;
+
+    // 0.从nalu->buf的最末尾的比特开始寻找
+    ctr_bit = (buf[last_byte_pos] & (0x01 << bitoffset));
+
+    // 1.循环找到trailing_bits中的rbsp_stop_one_bit
+    while (ctr_bit == 0)
+    {
+        bitoffset++;
+        if (bitoffset == 8)
+        {
+            // 因nalu->buf中保存的是nalu_header+RBSP，因此找到最后1字节的nalu_header就宣告RBSP查找结束
+            if (last_byte_pos == 1)
+                printf(" Panic: All zero data sequence in RBSP \n");
+            assert(last_byte_pos != 1);
+            last_byte_pos -= 1;
+            bitoffset = 0;
+        }
+        ctr_bit = buf[last_byte_pos - 1] & (0x01 << bitoffset);
+    }
+    // 【注】函数开始已对last_byte_pos做减1处理，此时last_byte_pos表示相对于SODB的位置，然后赋值给nalu->len得到最终SODB的大小
+    return last_byte_pos;
+}
+
+
+
+H264Nalu::H264Nalu(H264File *file):m_file(file)
 {
     H264Nalu *nalu = file->getNalu();
     start = nalu->buf;
@@ -13,7 +91,7 @@ H264Buffer::H264Buffer(H264File *file):m_file(file)
     bits_left = 8;
 }
 
-H264Buffer::H264Buffer(const H264Buffer &buf) 
+H264Nalu::H264Nalu(const H264Nalu &buf) 
 {
     start = buf.start;
     p = buf.p;
@@ -21,11 +99,11 @@ H264Buffer::H264Buffer(const H264Buffer &buf)
     bits_left = buf.bits_left;
 }
 
-H264Buffer::~H264Buffer()
+H264Nalu::~H264Nalu()
 {
 }
 
-bool H264Buffer::isEnd()
+bool H264Nalu::isEnd()
 {
     if (p >= end)
     {
@@ -34,7 +112,7 @@ bool H264Buffer::isEnd()
     return false;
 }
 
-uint8_t H264Buffer::peekOneBit()
+uint8_t H264Nalu::peekOneBit()
 {
     uint8_t r = 0;
 
@@ -45,7 +123,7 @@ uint8_t H264Buffer::peekOneBit()
     return r;
 }
 
-uint8_t H264Buffer::readOneBit()
+uint8_t H264Nalu::readOneBit()
 {
     uint8_t r = 0; // 读取比特返回值
 
@@ -68,7 +146,7 @@ uint8_t H264Buffer::readOneBit()
     return r;
 }
 
-int H264Buffer::readBits(int n)
+int H264Nalu::readBits(int n)
 {
     int r = 0; // 读取比特返回值
     int i;     // 当前读取到的比特位索引
@@ -80,7 +158,7 @@ int H264Buffer::readBits(int n)
     return r;
 }
 
-int H264Buffer::readUe()
+int H264Nalu::readUe()
 {
     int r = 0; // 解码得到的返回值
     int i = 0; // leadingZeroBits
@@ -98,7 +176,7 @@ int H264Buffer::readUe()
     return r;
 }
 
-int H264Buffer::readSe()
+int H264Nalu::readSe()
 {
     // 1.解码出codeNum，记为r
     int r = readUe();
@@ -115,7 +193,7 @@ int H264Buffer::readSe()
     return r;
 }
 
-int H264Buffer::readTe(int x)
+int H264Nalu::readTe(int x)
 {
     int r = 0;
 
@@ -136,7 +214,7 @@ int H264Buffer::readTe(int x)
  scaling_list函数实现
  [h264协议文档位置]：7.3.2.1.1 Scaling list syntax
  */
-void H264Buffer::scaling_list(int *scalingList, int sizeOfScalingList, int *useDefaultScalingMatrixFlag)
+void H264Nalu::scaling_list(int *scalingList, int sizeOfScalingList, int *useDefaultScalingMatrixFlag)
 {
     int deltaScale;
     int lastScale = 8;
@@ -157,7 +235,7 @@ void H264Buffer::scaling_list(int *scalingList, int sizeOfScalingList, int *useD
     }
 }
 
-void H264Buffer::getSps()
+void H264Nalu::getSps()
 {
     sps_t *sps =  m_file->activeSps();
 
@@ -254,7 +332,7 @@ void H264Buffer::getSps()
     }
 }
 
-void H264Buffer::getPps() 
+void H264Nalu::getPps() 
 {
     pps_t *pps =  m_file->activePps();
      // 解析slice_group_id[]需用的比特个数
@@ -356,7 +434,7 @@ void H264Buffer::getPps()
  解析vui_parameters()句法元素
  [h264协议文档位置]：Annex E.1.1
  */
-void H264Buffer::parse_vui_parameters(sps_t *sps)
+void H264Nalu::parse_vui_parameters(sps_t *sps)
 {
     sps->vui_parameters.aspect_ratio_info_present_flag = readBits(1);
     if (sps->vui_parameters.aspect_ratio_info_present_flag)
@@ -441,7 +519,7 @@ void H264Buffer::parse_vui_parameters(sps_t *sps)
  解析hrd_parameters()句法元素
  [h264协议文档位置]：Annex E.1.2
  */
-void H264Buffer::parse_vui_hrd_parameters(hrd_parameters_t *hrd)
+void H264Nalu::parse_vui_hrd_parameters(hrd_parameters_t *hrd)
 {
     hrd->cpb_cnt_minus1 = readUe();
     hrd->bit_rate_scale = readBits(4);
@@ -464,7 +542,7 @@ void H264Buffer::parse_vui_hrd_parameters(hrd_parameters_t *hrd)
  在rbsp_trailing_bits()之前是否有更多数据
  [h264协议文档位置]：7.2 Specification of syntax functions, categories, and descriptors
  */
-int H264Buffer::more_rbsp_data()
+int H264Nalu::more_rbsp_data()
 {
     // 0.是否已读到末尾
     if (isEnd()) {return 0;}
@@ -473,7 +551,7 @@ int H264Buffer::more_rbsp_data()
     if (peekOneBit() == 0) {return 1;}
     
     // 2.到这说明下一比特值为1，这就要看看是否这个1就是rbsp_stop_one_bit，也即1后面是否全为0
-    H264Buffer bs_temp(*this);
+    H264Nalu bs_temp(*this);
     
     // 3.跳过刚才读取的这个1，逐比特查看1后面的所有比特，直到遇到另一个1或读到结束为止
     bs_temp.readOneBit();
