@@ -1,7 +1,7 @@
 
-#include "h264_buffer.h"
-#include "h264_nalu.h"
-#include "h264_file.h"
+#include "H264Buffer.h"
+#include "H264Nalu.h"
+#include "H264File.h"
 #include "stdio.h"
 #include "malloc.h"
 

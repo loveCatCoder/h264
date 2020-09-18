@@ -1,15 +1,15 @@
 
-
-#include "h264_buffer.h"
+#include "H264Buffer.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 
-H264Buffer::H264Buffer(uint8_t *buffer, size_t size)
+H264Buffer::H264Buffer(H264File *file):m_file(file)
 {
-    start = buffer;
-    p = buffer;
-    end = buffer + size;
+    H264Nalu *nalu = file->getNalu();
+    start = nalu->buf;
+    p = nalu->buf;
+    end = nalu->buf + nalu->len;
     bits_left = 8;
 }
 
@@ -68,7 +68,7 @@ uint8_t H264Buffer::readOneBit()
     return r;
 }
 
-int H264Buffer::readBit(int n)
+int H264Buffer::readBits(int n)
 {
     int r = 0; // 读取比特返回值
     int i;     // 当前读取到的比特位索引
@@ -91,7 +91,7 @@ int H264Buffer::readUe()
         i++;
     }
     // 2.计算read_bits( leadingZeroBits )
-    r = readBit(i);
+    r = readBits(i);
     // 3.计算codeNum，1 << i即为2的i次幂
     r += (1 << i) - 1;
 
@@ -157,19 +157,19 @@ void H264Buffer::scaling_list(int *scalingList, int sizeOfScalingList, int *useD
     }
 }
 
-sps_t *H264Buffer::getSps()
+void H264Buffer::getSps()
 {
-    sps_t *sps = new sps_t();
+    sps_t *sps =  m_file->activeSps();
 
-    sps->profile_idc = readBit(8);
-    sps->constraint_set0_flag = readBit(1);
-    sps->constraint_set1_flag = readBit(1);
-    sps->constraint_set2_flag = readBit(1);
-    sps->constraint_set3_flag = readBit(1);
-    sps->constraint_set4_flag = readBit(1);
-    sps->constraint_set5_flag = readBit(1);
-    sps->reserved_zero_2bits = readBit(2);
-    sps->level_idc = readBit(8);
+    sps->profile_idc = readBits(8);
+    sps->constraint_set0_flag = readBits(1);
+    sps->constraint_set1_flag = readBits(1);
+    sps->constraint_set2_flag = readBits(1);
+    sps->constraint_set3_flag = readBits(1);
+    sps->constraint_set4_flag = readBits(1);
+    sps->constraint_set5_flag = readBits(1);
+    sps->reserved_zero_2bits = readBits(2);
+    sps->level_idc = readBits(8);
 
     sps->seq_parameter_set_id = readUe();
 
@@ -179,19 +179,19 @@ sps_t *H264Buffer::getSps()
         sps->chroma_format_idc = readUe();
         if (sps->chroma_format_idc == YUV_4_4_4)
         {
-            sps->separate_colour_plane_flag = readBit(1);
+            sps->separate_colour_plane_flag = readBits(1);
         }
         sps->bit_depth_luma_minus8 = readUe();
         sps->bit_depth_chroma_minus8 = readUe();
-        sps->qpprime_y_zero_transform_bypass_flag = readBit(1);
-        sps->seq_scaling_matrix_present_flag = readBit(1);
+        sps->qpprime_y_zero_transform_bypass_flag = readBits(1);
+        sps->seq_scaling_matrix_present_flag = readBits(1);
 
         if (sps->seq_scaling_matrix_present_flag)
         {
             int scalingListCycle = (sps->chroma_format_idc != YUV_4_4_4) ? 8 : 12;
             for (int i = 0; i < scalingListCycle; i++)
             {
-                sps->seq_scaling_list_present_flag[i] = readBit(1);
+                sps->seq_scaling_list_present_flag[i] = readBits(1);
                 if (sps->seq_scaling_list_present_flag[i])
                 {
                     if (i < 6)
@@ -215,7 +215,7 @@ sps_t *H264Buffer::getSps()
     }
     else if (sps->pic_order_cnt_type == 1)
     {
-        sps->delta_pic_order_always_zero_flag = readBit( 1);
+        sps->delta_pic_order_always_zero_flag = readBits( 1);
         sps->offset_for_non_ref_pic = readSe();
         sps->offset_for_top_to_bottom_field = readSe();
         sps->num_ref_frames_in_pic_order_cnt_cycle = readUe();
@@ -226,19 +226,19 @@ sps_t *H264Buffer::getSps()
     }
 
     sps->max_num_ref_frames = readUe();
-    sps->gaps_in_frame_num_value_allowed_flag = readBit(1);
+    sps->gaps_in_frame_num_value_allowed_flag = readBits(1);
 
     sps->pic_width_in_mbs_minus1 = readUe();
     sps->pic_height_in_map_units_minus1 = readUe();
-    sps->frame_mbs_only_flag = readBit(1);
+    sps->frame_mbs_only_flag = readBits(1);
     if (!sps->frame_mbs_only_flag)
     {
-        sps->mb_adaptive_frame_field_flag = readBit(1);
+        sps->mb_adaptive_frame_field_flag = readBits(1);
     }
 
-    sps->direct_8x8_inference_flag = readBit(1);
+    sps->direct_8x8_inference_flag = readBits(1);
 
-    sps->frame_cropping_flag = readBit(1);
+    sps->frame_cropping_flag = readBits(1);
     if (sps->frame_cropping_flag)
     {
         sps->frame_crop_left_offset = readUe();
@@ -247,24 +247,23 @@ sps_t *H264Buffer::getSps()
         sps->frame_crop_bottom_offset = readUe();
     }
 
-    sps->vui_parameters_present_flag = readBit(1);
+    sps->vui_parameters_present_flag = readBits(1);
     if (sps->vui_parameters_present_flag)
     {
         parse_vui_parameters(sps);
     }
-    return sps;
 }
 
-pps_t* H264Buffer::getPps() 
+void H264Buffer::getPps() 
 {
-    pps_t *pps = new pps_t();
+    pps_t *pps =  m_file->activePps();
      // 解析slice_group_id[]需用的比特个数
     int bitsNumberOfEachSliceGroupID;
     
     pps->pic_parameter_set_id = readUe();
     pps->seq_parameter_set_id = readUe();
-    pps->entropy_coding_mode_flag = readBit( 1);
-    pps->bottom_field_pic_order_in_frame_present_flag = readBit( 1);
+    pps->entropy_coding_mode_flag = readBits( 1);
+    pps->bottom_field_pic_order_in_frame_present_flag = readBits( 1);
     
     /*  —————————— FMO相关 Start  —————————— */
     pps->num_slice_groups_minus1 = readUe();
@@ -287,7 +286,7 @@ pps_t* H264Buffer::getPps()
                  pps->slice_group_map_type == 4 ||
                  pps->slice_group_map_type == 5)
         {
-            pps->slice_group_change_direction_flag = readBit( 1);
+            pps->slice_group_change_direction_flag = readBits( 1);
             pps->slice_group_change_rate_minus1 = readUe();
         }
         else if (pps->slice_group_map_type == 6)
@@ -300,7 +299,7 @@ pps_t* H264Buffer::getPps()
             else
                 bitsNumberOfEachSliceGroupID = 1;
             
-            // 2.动态初始化指针pps->slice_group_id
+            // 2.动态初始化指针pps.slice_group_id
             pps->pic_size_in_map_units_minus1 = readUe();
             pps->slice_group_id = (int*)calloc(pps->pic_size_in_map_units_minus1+1, 1);
             if (pps->slice_group_id == NULL) {
@@ -309,7 +308,7 @@ pps_t* H264Buffer::getPps()
             }
             
             for (int i = 0; i <= pps->pic_size_in_map_units_minus1; i++) {
-                pps->slice_group_id[i] = readBit( bitsNumberOfEachSliceGroupID);
+                pps->slice_group_id[i] = readBits( bitsNumberOfEachSliceGroupID);
             }
         }
     }
@@ -318,26 +317,26 @@ pps_t* H264Buffer::getPps()
     pps->num_ref_idx_l0_default_active_minus1 = readUe();
     pps->num_ref_idx_l1_default_active_minus1 = readUe();
     
-    pps->weighted_pred_flag = readBit( 1);
-    pps->weighted_bipred_idc = readBit( 2);
+    pps->weighted_pred_flag = readBits( 1);
+    pps->weighted_bipred_idc = readBits( 2);
     
     pps->pic_init_qp_minus26 = readSe( );
     pps->pic_init_qs_minus26 = readSe();
     pps->chroma_qp_index_offset = readSe();
     
-    pps->deblocking_filter_control_present_flag = readBit( 1);
-    pps->constrained_intra_pred_flag = readBit( 1);
-    pps->redundant_pic_cnt_present_flag = readBit( 1);
+    pps->deblocking_filter_control_present_flag = readBits( 1);
+    pps->constrained_intra_pred_flag = readBits( 1);
+    pps->redundant_pic_cnt_present_flag = readBits( 1);
     
     // 如果有更多rbsp数据
     if (more_rbsp_data()) {
-        pps->transform_8x8_mode_flag = readBit( 1);
-        pps->pic_scaling_matrix_present_flag = readBit( 1);
+        pps->transform_8x8_mode_flag = readBits( 1);
+        pps->pic_scaling_matrix_present_flag = readBits( 1);
         if (pps->pic_scaling_matrix_present_flag) {
-            int chroma_format_idc = Sequence_Parameters_Set_Array[pps->seq_parameter_set_id].chroma_format_idc;
+            int chroma_format_idc = m_file->Sequence_Parameters_Set_Array[pps->seq_parameter_set_id].chroma_format_idc;
             int scalingListCycle = 6 + ((chroma_format_idc != YUV_4_4_4) ? 2 : 6) * pps->transform_8x8_mode_flag;
             for (int i = 0; i < scalingListCycle; i++) {
-                pps->pic_scaling_list_present_flag[i] = readBit( 1);
+                pps->pic_scaling_list_present_flag[i] = readBits( 1);
                 if (pps->pic_scaling_list_present_flag[i]) {
                     if (i < 6) {
                         scaling_list(pps->ScalingList4x4[i], 16, &pps->UseDefaultScalingMatrix4x4Flag[i]);
@@ -359,60 +358,60 @@ pps_t* H264Buffer::getPps()
  */
 void H264Buffer::parse_vui_parameters(sps_t *sps)
 {
-    sps->vui_parameters.aspect_ratio_info_present_flag = readBit(1);
+    sps->vui_parameters.aspect_ratio_info_present_flag = readBits(1);
     if (sps->vui_parameters.aspect_ratio_info_present_flag)
     {
-        sps->vui_parameters.aspect_ratio_idc = readBit(8);
+        sps->vui_parameters.aspect_ratio_idc = readBits(8);
         if (sps->vui_parameters.aspect_ratio_idc == 255)
         { // Extended_SAR值为255
-            sps->vui_parameters.sar_width = readBit(16);
-            sps->vui_parameters.sar_height = readBit(16);
+            sps->vui_parameters.sar_width = readBits(16);
+            sps->vui_parameters.sar_height = readBits(16);
         }
     }
 
-    sps->vui_parameters.overscan_info_present_flag = readBit(1);
+    sps->vui_parameters.overscan_info_present_flag = readBits(1);
     if (sps->vui_parameters.overscan_info_present_flag)
     {
-        sps->vui_parameters.overscan_appropriate_flag = readBit(1);
+        sps->vui_parameters.overscan_appropriate_flag = readBits(1);
     }
 
-    sps->vui_parameters.video_signal_type_present_flag = readBit(1);
+    sps->vui_parameters.video_signal_type_present_flag = readBits(1);
     if (sps->vui_parameters.video_signal_type_present_flag)
     {
-        sps->vui_parameters.video_format = readBit(3);
-        sps->vui_parameters.video_full_range_flag = readBit(1);
+        sps->vui_parameters.video_format = readBits(3);
+        sps->vui_parameters.video_full_range_flag = readBits(1);
 
-        sps->vui_parameters.colour_description_present_flag = readBit(1);
+        sps->vui_parameters.colour_description_present_flag = readBits(1);
         if (sps->vui_parameters.colour_description_present_flag)
         {
-            sps->vui_parameters.colour_primaries = readBit(8);
-            sps->vui_parameters.transfer_characteristics = readBit(8);
-            sps->vui_parameters.matrix_coefficients = readBit(8);
+            sps->vui_parameters.colour_primaries = readBits(8);
+            sps->vui_parameters.transfer_characteristics = readBits(8);
+            sps->vui_parameters.matrix_coefficients = readBits(8);
         }
     }
 
-    sps->vui_parameters.chroma_loc_info_present_flag = readBit(1);
+    sps->vui_parameters.chroma_loc_info_present_flag = readBits(1);
     if (sps->vui_parameters.chroma_loc_info_present_flag)
     {
         sps->vui_parameters.chroma_sample_loc_type_top_field = readUe();
         sps->vui_parameters.chroma_sample_loc_type_bottom_field = readUe();
     }
 
-    sps->vui_parameters.timing_info_present_flag = readBit(1);
+    sps->vui_parameters.timing_info_present_flag = readBits(1);
     if (sps->vui_parameters.timing_info_present_flag)
     {
-        sps->vui_parameters.num_units_in_tick = readBit(32);
-        sps->vui_parameters.time_scale = readBit(32);
-        sps->vui_parameters.fixed_frame_rate_flag = readBit(1);
+        sps->vui_parameters.num_units_in_tick = readBits(32);
+        sps->vui_parameters.time_scale = readBits(32);
+        sps->vui_parameters.fixed_frame_rate_flag = readBits(1);
     }
 
-    sps->vui_parameters.nal_hrd_parameters_present_flag = readBit(1);
+    sps->vui_parameters.nal_hrd_parameters_present_flag = readBits(1);
     if (sps->vui_parameters.nal_hrd_parameters_present_flag)
     {
         parse_vui_hrd_parameters(&sps->vui_parameters.nal_hrd_parameters);
     }
 
-    sps->vui_parameters.vcl_hrd_parameters_present_flag = readBit(1);
+    sps->vui_parameters.vcl_hrd_parameters_present_flag = readBits(1);
     if (sps->vui_parameters.vcl_hrd_parameters_present_flag)
     {
         parse_vui_hrd_parameters(&sps->vui_parameters.vcl_hrd_parameters);
@@ -421,14 +420,14 @@ void H264Buffer::parse_vui_parameters(sps_t *sps)
     if (sps->vui_parameters.nal_hrd_parameters_present_flag ||
         sps->vui_parameters.vcl_hrd_parameters_present_flag)
     {
-        sps->vui_parameters.low_delay_hrd_flag = readBit(1);
+        sps->vui_parameters.low_delay_hrd_flag = readBits(1);
     }
 
-    sps->vui_parameters.pic_struct_present_flag = readBit(1);
-    sps->vui_parameters.bitstream_restriction_flag = readBit(1);
+    sps->vui_parameters.pic_struct_present_flag = readBits(1);
+    sps->vui_parameters.bitstream_restriction_flag = readBits(1);
     if (sps->vui_parameters.bitstream_restriction_flag)
     {
-        sps->vui_parameters.motion_vectors_over_pic_boundaries_flag = readBit(1);
+        sps->vui_parameters.motion_vectors_over_pic_boundaries_flag = readBits(1);
         sps->vui_parameters.max_bytes_per_pic_denom = readUe();
         sps->vui_parameters.max_bits_per_mb_denom = readUe();
         sps->vui_parameters.log2_max_mv_length_horizontal = readUe();
@@ -445,20 +444,20 @@ void H264Buffer::parse_vui_parameters(sps_t *sps)
 void H264Buffer::parse_vui_hrd_parameters(hrd_parameters_t *hrd)
 {
     hrd->cpb_cnt_minus1 = readUe();
-    hrd->bit_rate_scale = readBit(4);
-    hrd->cpb_size_scale = readBit(4);
+    hrd->bit_rate_scale = readBits(4);
+    hrd->cpb_size_scale = readBits(4);
 
     for (int SchedSelIdx = 0; SchedSelIdx <= hrd->cpb_cnt_minus1; SchedSelIdx++)
     {
         hrd->bit_rate_value_minus1[SchedSelIdx] = readUe();
         hrd->cpb_size_value_minus1[SchedSelIdx] = readUe();
-        hrd->cbr_flag[SchedSelIdx] = readBit(1);
+        hrd->cbr_flag[SchedSelIdx] = readBits(1);
     }
 
-    hrd->initial_cpb_removal_delay_length_minus1 = readBit(5);
-    hrd->cpb_removal_delay_length_minus1 = readBit(5);
-    hrd->dpb_output_delay_length_minus1 = readBit(5);
-    hrd->time_offset_length = readBit(5);
+    hrd->initial_cpb_removal_delay_length_minus1 = readBits(5);
+    hrd->cpb_removal_delay_length_minus1 = readBits(5);
+    hrd->dpb_output_delay_length_minus1 = readBits(5);
+    hrd->time_offset_length = readBits(5);
 }
 
 /**

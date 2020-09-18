@@ -258,6 +258,12 @@ typedef enum
     COLOR_PLANE_R = 2
 } Color_Plane;
 
+struct H264MediaInfo
+{
+    int videoWidth;
+    int videoHeight;
+    int frameRate;
+};
 
 
 

@@ -1,7 +1,6 @@
 
-
-#include "h264_file.h"
-#include "h264_buffer.h"
+#include "H264File.h"
+#include "H264Buffer.h"
 #include <assert.h>
 
 H264File::~H264File()
@@ -33,7 +32,7 @@ int H264File::findNalu()
 
         m_naluIndex = m_naluIndex + 1; // 读取索引加1
     }
-
+    //index 为跳过0x000001或者0x00000001的位置
     m_naluIndex += 3; // 读取索引加3
     m_naluStart = m_naluIndex;
 
@@ -74,12 +73,12 @@ void H264File::readNalu()
     m_nalu.len = naluToRbsp();
 
     // 2.初始化逐比特读取工具句柄
-    H264Buffer *bs = new H264Buffer(m_nalu.buf, m_nalu.len);
+    H264Buffer bs = H264Buffer(this);
 
     // 3. 读取nal header 7.3.1
-    m_nalu.forbidden_zero_bit = bs->readBit(1);
-    m_nalu.nal_ref_idc = bs->readBit(2);
-    m_nalu.nal_unit_type = bs->readBit(5);
+    m_nalu.forbidden_zero_bit = bs.readBits(1);
+    m_nalu.nal_ref_idc = bs.readBits(2);
+    m_nalu.nal_unit_type = bs.readBits(5);
 
     printf("naluNumber: %d\n", m_naluNumber);
     printf("\tnal->forbidden_zero_bit: %d\n", m_nalu.forbidden_zero_bit);
@@ -95,12 +94,12 @@ void H264File::readNalu()
     {
     case H264_NAL_SPS:
         m_nalu.len = rbspToSodb();
-        m_nalu.m_activeSps = bs->getSps();
+        bs.getSps();
         break;
 
     case H264_NAL_PPS:
         m_nalu.len = rbspToSodb();
-        m_nalu.m_activePps = bs->getPps();
+        bs.getPps();
         break;
 
     case H264_NAL_SLICE:
@@ -126,6 +125,11 @@ void H264File::readNalu()
     default:
         break;
     }
+}
+
+H264Nalu *H264File::getNalu()
+{
+    return &m_nalu;
 }
 
 int H264File::naluToRbsp()
@@ -196,9 +200,19 @@ int H264File::rbspToSodb()
     return last_byte_pos;
 }
 
-int H264File::naluNumber() 
+int H264File::naluNumber()
 {
     return m_naluNumber;
+}
+
+sps_t *H264File::activeSps()
+{
+    return &m_activeSps;
+}
+
+pps_t *H264File::activePps()
+{
+    return &m_activePps;
 }
 
 H264File::H264File(const std::string name) : m_fileName(name)

@@ -1,7 +1,7 @@
 #ifndef _H264_NALU_H_
 #define _H264_NALU_H_
 
-#include "h264_private.h"
+#include "H264Private.h"
 #include <stdint.h>
 
 /* 7.4.1 Table 7-1 NAL unit types */
@@ -24,9 +24,8 @@ enum nal_unit_type
     H264_NAL_AUXILIARY_SLICE = 19,
 };
 
-class H264Nalu
+struct H264Nalu
 {
-public:
     // nal unit header
     int forbidden_zero_bit; // f(1)
     int nal_ref_idc;        // u(2)
@@ -35,13 +34,7 @@ public:
     uint8_t *buf;
     // nal unit body
     
-public:
-    sps_t *m_activeSps;
-    pps_t *m_activePps;
 
-public:
-    H264Nalu(/* args */);
-    ~H264Nalu();
 };
 
 
