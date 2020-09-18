@@ -23,6 +23,7 @@ private:
 
     sps_t m_activeSps;
     pps_t m_activePps;
+    H264MediaInfo m_mediaInfo;
 public:
     // 因为sps_id的取值范围为[0,31]，因此数组容量最大为32，详见7.4.2.1
     sps_t Sequence_Parameters_Set_Array[32];
@@ -44,6 +45,8 @@ public:
     int naluNumber();
     sps_t* activeSps();
     pps_t* activePps();
+public:
+    bool decodeMediaInfo(uint8_t *buffer,int len,H264MediaInfo *info);
 };
 
 #endif

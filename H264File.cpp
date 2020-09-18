@@ -215,6 +215,39 @@ pps_t *H264File::activePps()
     return &m_activePps;
 }
 
+bool H264File::decodeMediaInfo(uint8_t *buffer, int len, H264MediaInfo *info)
+{
+    //设置buffer
+    m_fileBuffer = buffer;
+    m_fileSize = len;
+    //解析nalu
+    while (findNalu() > 0)
+    {
+        // 读取/解析 nalu
+        readNalu();
+    }
+
+    //计算参数并返回
+    m_mediaInfo.videoWidth = (m_activeSps.pic_width_in_mbs_minus1+1)*16;
+    m_mediaInfo.videoHeight = (m_activeSps.pic_height_in_map_units_minus1+1)*16;
+    if(m_activeSps.vui_parameters.timing_info_present_flag == 1)
+    {
+        if(m_activeSps.vui_parameters.num_units_in_tick != 0)
+        {
+            m_mediaInfo.frameRate = m_activeSps.vui_parameters.time_scale/(2*m_activeSps.vui_parameters.num_units_in_tick);
+        }
+    }
+    else
+    {
+        m_mediaInfo.frameRate = 0;
+    }
+    
+    info->frameRate = m_mediaInfo.frameRate;
+    info->videoHeight = m_mediaInfo.videoHeight;
+    info->videoWidth = m_mediaInfo.videoWidth;
+    return true;
+}
+
 H264File::H264File(const std::string name) : m_fileName(name)
 {
     FILE *fp_h264 = fopen(m_fileName.c_str(), "rb");
