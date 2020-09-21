@@ -1,0 +1,3 @@
+H264Nalu.o: H264Nalu.cpp H264Nalu.h H264Private.h H264File.h
+H264File.o: H264File.cpp H264File.h H264Nalu.h H264Private.h
+main.o: main.cpp H264Nalu.h H264Private.h H264File.h

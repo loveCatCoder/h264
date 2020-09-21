@@ -83,11 +83,6 @@ int H264Nalu::rbspToSodb()
 
 
 
-
-H264Nalu::~H264Nalu()
-{
-}
-
 bool H264Nalu::isEnd()
 {
     if (p >= end)

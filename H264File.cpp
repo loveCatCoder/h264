@@ -1,6 +1,6 @@
 
 #include "H264File.h"
-#include "H264Buffer.h"
+#include "H264Nalu.h"
 #include <assert.h>
 
 H264File::~H264File()
@@ -195,11 +195,11 @@ H264File::H264File(const std::string name) : m_fileName(name)
     fclose(fp_h264);
 
     // 1. 开辟nalu_t保存nalu_header和SODB
-    m_nalu = H264Nalu();
-    m_nalu.buf = (uint8_t *)calloc(m_fileSize, sizeof(uint8_t));
-    if (m_nalu.buf == NULL)
-    {
-        fprintf(stderr, "%s\n", "AllocNALU: m_nalu.buf");
-        exit(-1);
-    }
+    // m_nalu = H264Nalu();
+    // m_nalu.buf = (uint8_t *)calloc(m_fileSize, sizeof(uint8_t));
+    // if (m_nalu.buf == NULL)
+    // {
+    //     fprintf(stderr, "%s\n", "AllocNALU: m_nalu.buf");
+    //     exit(-1);
+    // }
 }

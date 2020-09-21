@@ -51,7 +51,6 @@ private:
     uint8_t *p;
     uint8_t *end;
     int bits_left;
-    H264File *m_file;
 
 public:
     void getSps();
